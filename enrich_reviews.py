@@ -1,5 +1,8 @@
 import pandas as pd
 from langdetect import detect
+import plotly.offline as pyo
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
 
 
 def check_language(df):
@@ -83,8 +86,43 @@ def flagged(df):
     df['is_flagged'] = create_flag
 
 
-def main():
-    df = pd.read_json('Data/review.json', lines=True)
+def flagged_list(df):
+    temp = []
+    for row in df.iterrows():
+        if row['is_flagged'] == "Flagged Fake":
+            temp.append(row)
+
+    df_1 = pd.DataFrame(temp)
+    write = df_1.to_json(orient='records', lines=True)
+
+    with open('Data/flagged_reviews.json', 'w') as file:
+        file.write(write)
+
+def print_dashboard(df):
+    # Number of reviews by rating
+    df1 = df.groupby(['rating'])['user_id'].count().reset_index()
+    df1 = df1.sort_values(by=['user_id'], ascending=[False])
+
+    # Number of flagged reviews
+    df2 = df.groupby(['is_flagged'])['rating'].count().reset_index()
+
+    # Number of flagged reviews by rating
+    df3 = df[df['is_flagged'] == "Flagged Fake"].groupby(['rating'])['user_id'].count().reset_index()
+    df4 = df[df['is_flagged'] != "Flagged Fake"].groupby(['rating'])['user_id'].count().reset_index()
+    print(df3)
+    print(df4)
+
+    fig = make_subplots(rows=3, cols=1, subplot_titles=("Flagged Fake Breakdown", "Reviews by Rating", "Reviews by Rating With Flagged Fake"), specs=[[ {'type' : 'pie'}],[{'type' : 'bar'}],[{'type' : 'bar'}]])
+    fig.add_trace(go.Pie(labels=["Not Flagged Fake (Pie Chart)", "Flagged Fake (Pie Chart)"], values=df2['rating']), row=1, col=1)
+    fig.add_trace(go.Bar(x=df1['rating'], y=df1['user_id'], name='Reviews Without Flags', marker_color='rgb(26, 200, 26)'), row=2, col=1)
+    fig.add_trace(go.Bar(x=df4['rating'], y=df4['user_id'], name='Not Flagged Fake', marker_color='rgb(26, 118, 255)'), row=3, col=1)
+    fig.add_trace(go.Bar(x=df3['rating'], y=df3['user_id'], name='Flagged Fake', marker_color='rgb(255, 50, 26)'), row=3, col=1)
+    fig.update_layout(height=600, width=800, title_text="Product Review Report", barmode='stack')
+
+    pyo.plot(fig, filename='ReviewDashboard.html')
+
+def main(file):
+    df = pd.read_json(file, lines=True)
 
     print("\nData Frame Before Enrichment:")
     print(df)
@@ -100,13 +138,12 @@ def main():
     print("\nData Frame After Enrichment:")
     print(df)
 
+    print_dashboard(df)
+
     write = df.to_json(orient='records', lines=True)
 
     with open('Data/enriched_reviews.json', 'w') as file:
         file.write(write)
 
-
-if __name__ == '__main__':
-    main()
 
 
